@@ -1,15 +1,14 @@
 package main
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"api/config"
+	"log"
 )
 
 func main() {
-	app := fiber.New()
 
-	app.Get("/", func(c *fiber.Ctx) error {
-		return c.SendString("Hello World!")
-	})
+	if err := config.InitSupabase(); err != nil {
+		log.Fatal("Failed to initialized Supabase: %v", err)
 
-	app.Listen(":3000")
+	}
 }
