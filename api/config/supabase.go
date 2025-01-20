@@ -15,7 +15,7 @@ func InitSupabase() error {
 	}
 
 	supabaseURL := os.Getenv("SUPABASE_URL")
-	supabaseKey := os.Getenv("SUPABASE_ANNON_KEY")
+	supabaseKey := os.Getenv("SUPABASE_ANON_KEY")
 
 	if supabaseURL == "" || supabaseKey == "" {
 		return errors.New("missing required environment variables")
