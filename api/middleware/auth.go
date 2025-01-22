@@ -24,14 +24,14 @@ func Protected() fiber.Handler {
 
 		client.Auth.WithToken(token)
 
-		user, err := client.Auth.GetUser()
+		_, err := client.Auth.GetUser()
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Invalid or expired token",
 			})
 		}
 
-		c.Locals("user", user)
+		c.Locals("token", token)
 
 		return c.Next()
 	}
@@ -41,26 +41,42 @@ func AdminOnly() fiber.Handler {
 
 	return func(c *fiber.Ctx) error {
 
-		user := c.Locals("user")
+		token := c.Locals("token")
 
-		if user == nil {
+		if token == nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Not Authenticated",
 			})
 		}
 
-		userData, ok := user.(map[string]interface{})
-		if !ok {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Invalid user data format",
+		client := config.GetSupabaseClient()
+		user, err := client.Auth.GetUser()
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid token",
 			})
 		}
-		isAuthorized, ok := userData["is_authorized"].(bool)
-		if !ok || !isAuthorized {
+
+		isAdmin, ok := user.AppMetadata["is_admin"].(bool)
+		if !ok || !isAdmin {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error": "Admin access required",
 			})
 		}
+
+		//userData, ok := token.(map[string]interface{})
+		//if !ok {
+		//	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		//		"error": "Invalid token data format",
+		//	})
+		//}
+		//
+		//isAuthorized, ok := userData["is_authorized"].(bool)
+		//if !ok || !isAuthorized {
+		//	return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+		//		"error": "Admin access required",
+		//	})
+		//}
 
 		return c.Next()
 

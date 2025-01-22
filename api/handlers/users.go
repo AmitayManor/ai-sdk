@@ -99,7 +99,7 @@ func (h *UserHandler) ListUsers(c *fiber.Ctx) error {
 	page := c.QueryInt("page", 1)
 	limit := c.QueryInt("limit", 10)
 	offset := (page - 1) * limit
-
+	
 	res, count, err := h.supabaseClient.From("users").
 		Select("*", "exact", false).
 		Range(offset, offset+limit-1, "").
@@ -276,6 +276,7 @@ func (h *UserHandler) ResetLoginAttempts(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusOK)
 }
 
+// i think that i need to change the c.Locals('user') to 'token'
 func (h *UserHandler) AdminUpdateUser(c *fiber.Ctx) error {
 	reqUserData := c.Locals("user")
 	reqUser, ok := reqUserData.(models.User)
@@ -286,4 +287,31 @@ func (h *UserHandler) AdminUpdateUser(c *fiber.Ctx) error {
 	}
 
 	return h.UpdateUser(c)
+}
+
+func (h *UserHandler) SignIn(c *fiber.Ctx) error {
+	var credentials struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	if err := c.BodyParser(&credentials); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	authResponse, err := h.supabaseClient.Auth.SignInWithEmailPassword(credentials.Email, credentials.Password)
+
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error":   "Invalid credentials",
+			"details": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"access_token": authResponse.AccessToken,
+		"token_type":   "Bearer",
+	})
 }
