@@ -2,11 +2,71 @@ package middleware
 
 import (
 	"api/config"
+	"api/models"
 	"github.com/gofiber/fiber/v2"
 	"strings"
+	"sync"
+	"time"
 )
 
-// TODO: Test implementation
+type TokenBlacklist struct {
+	tokens map[string]time.Time
+	mutex  sync.RWMutex
+}
+
+var blacklist = &TokenBlacklist{
+	tokens: make(map[string]time.Time),
+}
+
+func (tb *TokenBlacklist) IsBlackListed(token string) bool {
+	tb.mutex.RLock()
+	defer tb.mutex.RUnlock()
+
+	expiryTime, exists := tb.tokens[token]
+	if !exists {
+		return false
+	}
+
+	if time.Now().After(expiryTime) {
+		tb.mutex.RUnlock()
+		tb.mutex.Lock()
+
+		delete(tb.tokens, token)
+
+		tb.mutex.Unlock()
+		tb.mutex.RLock()
+		return false
+	}
+	return true
+}
+
+func (tb *TokenBlacklist) AddToBlacklist(token string, duration time.Duration) {
+	tb.mutex.Lock()
+	defer tb.mutex.Unlock()
+	tb.tokens[token] = time.Now().Add(duration)
+}
+
+func ValidateToken(token string) (*models.User, error) {
+	if blacklist.IsBlackListed(token) {
+		return nil, models.ErrUnauthorized
+	}
+
+	client := config.GetSupabaseClient()
+	client.Auth.WithToken(token)
+
+	user, err := client.Auth.GetUser()
+	if err != nil {
+		return nil, models.ErrUnauthorized
+	}
+
+	appUser := &models.User{
+		Email:    user.Email,
+		IsAdmin:  user.AppMetadata["is_admin"].(bool),
+		IsActive: true,
+	}
+
+	return appUser, nil
+}
 
 func Protected() fiber.Handler {
 
@@ -19,19 +79,15 @@ func Protected() fiber.Handler {
 		}
 
 		token := strings.TrimPrefix(authHeader, "Bearer ")
-
-		client := config.GetSupabaseClient()
-
-		client.Auth.WithToken(token)
-
-		_, err := client.Auth.GetUser()
+		user, err := ValidateToken(token)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid or expired token",
+				"error": models.ErrUnauthorized.Error,
 			})
 		}
 
 		c.Locals("token", token)
+		c.Locals("user", user)
 
 		return c.Next()
 	}
@@ -40,45 +96,65 @@ func Protected() fiber.Handler {
 func AdminOnly() fiber.Handler {
 
 	return func(c *fiber.Ctx) error {
-
-		token := c.Locals("token")
-
-		if token == nil {
+		user, ok := c.Locals("user").(*models.User)
+		if !ok || user == nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Not Authenticated",
+				"error": models.ErrUnaithenticated.Error(),
 			})
 		}
 
-		client := config.GetSupabaseClient()
-		user, err := client.Auth.GetUser()
-		if err != nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid token",
-			})
-		}
-
-		isAdmin, ok := user.AppMetadata["is_admin"].(bool)
-		if !ok || !isAdmin {
+		if !user.IsAdmin {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": "Admin access required",
+				"error": models.ErrNotAdmin.Error(),
+			})
+		}
+		return c.Next()
+	}
+}
+
+func RateLimiter(reaquest int, duration time.Duration) fiber.Handler {
+	type client struct {
+		count    int
+		lastSeen time.Time
+	}
+
+	var (
+		clients = make(map[string]*client)
+		mu      sync.RWMutex
+	)
+
+	go func() {
+		for {
+			time.Sleep(duration)
+			mu.Lock()
+			for ip, client := range clients {
+				if time.Since(client.lastSeen) > duration {
+					delete(clients, ip)
+				}
+			}
+			mu.Unlock()
+		}
+	}()
+
+	return func(c *fiber.Ctx) error {
+		ip := c.IP()
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		if clients[ip] == nil {
+			clients[ip] = &client{count: 1, lastSeen: time.Now()}
+			return c.Next()
+		}
+
+		if time.Since(clients[ip].lastSeen) > duration {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"error": "Rate limit exceeded",
 			})
 		}
 
-		//userData, ok := token.(map[string]interface{})
-		//if !ok {
-		//	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-		//		"error": "Invalid token data format",
-		//	})
-		//}
-		//
-		//isAuthorized, ok := userData["is_authorized"].(bool)
-		//if !ok || !isAuthorized {
-		//	return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-		//		"error": "Admin access required",
-		//	})
-		//}
-
+		clients[ip].count++
+		clients[ip].lastSeen = time.Now()
 		return c.Next()
-
 	}
 }
