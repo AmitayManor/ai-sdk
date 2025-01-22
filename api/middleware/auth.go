@@ -59,9 +59,14 @@ func ValidateToken(token string) (*models.User, error) {
 		return nil, models.ErrUnauthorized
 	}
 
+	isAdmin := false
+	if adminValue, ok := user.AppMetadata["is_admin"]; ok {
+		isAdmin, _ = adminValue.(bool)
+	}
+
 	appUser := &models.User{
 		Email:    user.Email,
-		IsAdmin:  user.AppMetadata["is_admin"].(bool),
+		IsAdmin:  isAdmin,
 		IsActive: true,
 	}
 
@@ -112,7 +117,7 @@ func AdminOnly() fiber.Handler {
 	}
 }
 
-func RateLimiter(reaquest int, duration time.Duration) fiber.Handler {
+func RateLimiter(request int, duration time.Duration) fiber.Handler {
 	type client struct {
 		count    int
 		lastSeen time.Time
