@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"log"
 	"os"
+	"time"
 )
 
 func main() {
@@ -28,16 +29,7 @@ func main() {
 	}
 	defer conn.Close(context.Background())
 
-	//// Example query to test connection
-	//var version string
-	//if err := conn.QueryRow(context.Background(), "SELECT version()").Scan(&version); err != nil {
-	//	log.Fatalf("Query failed: %v", err)
-	//}
-	//
-	//log.Println("Connected to:", version)
-	//
-	// ITS WORKING!!!!!!!!!
-
+	// init server engine
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -47,18 +39,25 @@ func main() {
 	})
 
 	app.Use(logger.New())
-	app.Use(cors.New())
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: os.Getenv("ALLOWED_ORIGINS"),
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+		AllowMethods: "GET, POST, PUT, DELETE, OPTIONS",
+	}))
 
 	userHandler := handlers.NewUserHandler(config.GetSupabaseClient())
 
-	//app.Get("/api/test/users", userHandler.TestConnection)
-
 	//Public routes
 	app.Post("/api/users", userHandler.CreateUser)
-	app.Post("/api/auth/signin", userHandler.SignIn)
+	app.Post("/api/auth/signin", middleware.RateLimiter(5, time.Minute),
+		userHandler.SignIn,
+	)
 
 	//Protected routes
-	api := app.Group("/api", middleware.Protected())
+	api := app.Group("/api", middleware.Protected(),
+		middleware.RateLimiter(100, time.Minute),
+	)
+
 	api.Get("/users", userHandler.ListUsers)
 	api.Get("/users/:id", userHandler.GetUser)
 	api.Put("/users/:id", userHandler.UpdateUser)
@@ -67,9 +66,16 @@ func main() {
 	api.Put("/users/:id/reset-attempts", userHandler.ResetLoginAttempts)
 
 	//Admin routes
-	admin := api.Group("/admin", middleware.AdminOnly())
+	admin := api.Group("/admin", middleware.AdminOnly(),
+		middleware.RateLimiter(50, time.Minute),
+	)
 	admin.Put("/users/:id", userHandler.AdminUpdateUser)
 
-	//Start server
-	log.Fatal(app.Listen(":3000"))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = ":3000"
+	}
+
+	log.Printf("Server running on port %s", port)
+	log.Fatal(app.Listen(":" + port))
 }

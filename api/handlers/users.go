@@ -36,7 +36,7 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 
 	if err == nil && count > 0 {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
-			"error": models.ErrUserAlreadyExists.Error(),
+			"error": models.ErrUserAlreadyExists.Error,
 		})
 	}
 
@@ -75,7 +75,7 @@ func (h *UserHandler) GetUser(c *fiber.Ctx) error {
 
 	if err != nil || count == 0 {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": models.ErrUserNotFound.Error(),
+			"error": models.ErrUserNotFound.Error,
 		})
 	}
 
@@ -99,7 +99,7 @@ func (h *UserHandler) ListUsers(c *fiber.Ctx) error {
 	page := c.QueryInt("page", 1)
 	limit := c.QueryInt("limit", 10)
 	offset := (page - 1) * limit
-	
+
 	res, count, err := h.supabaseClient.From("users").
 		Select("*", "exact", false).
 		Range(offset, offset+limit-1, "").
@@ -141,7 +141,7 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 	id, err := uuid.Parse(userId)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": models.ErrInvalidCredentials.Error(),
+			"error": models.ErrInvalidCredentials.Error,
 		})
 	}
 
@@ -159,12 +159,12 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 
 	if err != nil || count == 0 {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": models.ErrUserNotFound.Error(),
+			"error": models.ErrUserNotFound.Error,
 		})
 	}
 
 	_, _, err = h.supabaseClient.From("users").
-		Update(updateData, "representaion", "exact").
+		Update(updateData, "representation", "exact").
 		Eq("id", id.String()).
 		Execute()
 
@@ -207,7 +207,7 @@ func (h *UserHandler) UpdateLoginAttempts(c *fiber.Ctx) error {
 	id, err := uuid.Parse(userId)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": models.ErrInvalidCredentials.Error(),
+			"error": models.ErrInvalidCredentials.Error,
 		})
 	}
 
@@ -218,7 +218,7 @@ func (h *UserHandler) UpdateLoginAttempts(c *fiber.Ctx) error {
 
 	if err != nil || count == 0 {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": models.ErrUserNotFound.Error(),
+			"error": models.ErrUserNotFound.Error,
 		})
 	}
 
@@ -253,7 +253,7 @@ func (h *UserHandler) ResetLoginAttempts(c *fiber.Ctx) error {
 	id, err := uuid.Parse(userId)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": models.ErrInvalidCredentials.Error(),
+			"error": models.ErrInvalidCredentials.Error,
 		})
 	}
 
@@ -282,7 +282,7 @@ func (h *UserHandler) AdminUpdateUser(c *fiber.Ctx) error {
 	reqUser, ok := reqUserData.(models.User)
 	if !ok || !reqUser.IsAdmin {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": models.ErrUnauthorized.Error(),
+			"error": models.ErrUnauthorized.Error,
 		})
 	}
 
@@ -306,7 +306,7 @@ func (h *UserHandler) SignIn(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error":   "Invalid credentials",
-			"details": err.Error(),
+			"details": err.Error,
 		})
 	}
 
