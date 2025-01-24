@@ -3,6 +3,7 @@ package middleware
 import (
 	"api/config"
 	"api/models"
+	"encoding/json"
 	"github.com/gofiber/fiber/v2"
 	"strings"
 	"sync"
@@ -46,6 +47,29 @@ func (tb *TokenBlacklist) AddToBlacklist(token string, duration time.Duration) {
 	tb.tokens[token] = time.Now().Add(duration)
 }
 
+func (tb *TokenBlacklist) cleanup() {
+	tb.mutex.Lock()
+	defer tb.mutex.Unlock()
+
+	now := time.Now()
+	for token, expiry := range tb.tokens {
+		if now.After(expiry) {
+			delete(tb.tokens, token)
+		}
+	}
+}
+
+func InitBlacklist() {
+	go func() {
+		ticker := time.NewTicker(15 * time.Minute)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			blacklist.cleanup()
+		}
+	}()
+}
+
 func ValidateToken(token string) (*models.User, error) {
 	if blacklist.IsBlackListed(token) {
 		return nil, models.ErrUnauthorized
@@ -64,10 +88,29 @@ func ValidateToken(token string) (*models.User, error) {
 		isAdmin, _ = adminValue.(bool)
 	}
 
-	appUser := &models.User{
-		Email:    user.Email,
-		IsAdmin:  isAdmin,
-		IsActive: true,
+	result, count, err := client.From("users").
+		Select("*", "exact", false).
+		Eq("id", user.ID.String()).
+		Execute()
+
+	if err != nil || count == 0 {
+		return nil, models.ErrUserNotFound
+	}
+
+	var users []models.User
+	if err := json.Unmarshal([]byte(result), &users); err != nil {
+		return nil, models.ErrInternalServer
+	}
+
+	if len(users) == 0 {
+		return nil, models.ErrUserNotFound
+	}
+
+	appUser := &users[0]
+	appUser.IsAdmin = isAdmin
+
+	if !appUser.IsActive {
+		return nil, models.ErrUserInactive
 	}
 
 	return appUser, nil

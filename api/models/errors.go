@@ -3,6 +3,7 @@ package models
 import "errors"
 
 var (
+	ErrInternalServer       = errors.New("internal server error")
 	ErrNotAdmin             = errors.New("admin access required")
 	ErrUnauthenticated      = errors.New("user not authenticated")
 	ErrUnauthorized         = errors.New("user not authorized")
