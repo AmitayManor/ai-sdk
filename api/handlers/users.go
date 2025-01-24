@@ -64,7 +64,7 @@ func (h *UserHandler) GetUser(c *fiber.Ctx) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": models.ErrUserNotFound.Error(),
+			"error": models.ErrUserNotFound.Error,
 		})
 	}
 
@@ -86,7 +86,7 @@ func (h *UserHandler) GetUser(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.JSON(models.UserResponse{
+	return c.Status(fiber.StatusOK).JSON(models.UserResponse{
 		ID:       user.ID,
 		Email:    user.Email,
 		IsAdmin:  user.IsAdmin,
@@ -128,7 +128,7 @@ func (h *UserHandler) ListUsers(c *fiber.Ctx) error {
 		}
 	}
 
-	return c.JSON(fiber.Map{
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"users": response,
 		"total": count,
 		"page":  page,
@@ -182,7 +182,7 @@ func (h *UserHandler) DeleteUser(c *fiber.Ctx) error {
 	id, err := uuid.Parse(userId)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": models.ErrInvalidCredentials.Error(),
+			"error": models.ErrInvalidCredentials.Error,
 		})
 	}
 
