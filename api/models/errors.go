@@ -3,6 +3,8 @@ package models
 import "errors"
 
 var (
+	ErrNotAdmin             = errors.New("admin access required")
+	ErrUnauthenticated      = errors.New("user not authenticated")
 	ErrUnauthorized         = errors.New("user not authorized")
 	ErrUserNotFound         = errors.New("user not found")
 	ErrUserAlreadyExists    = errors.New("user already exists")
