@@ -38,6 +38,8 @@ func main() {
 		},
 	})
 
+	middleware.InitBlacklist()
+
 	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: os.Getenv("ALLOWED_ORIGINS"),
