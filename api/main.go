@@ -46,6 +46,13 @@ func main() {
 	}))
 
 	userHandler := handlers.NewUserHandler(config.GetSupabaseClient())
+	authHandler := handlers.NewAuthHandler(config.GetSupabaseClient())
+
+	//SignUp route
+	app.Post("api/auth/signup",
+		middleware.ValidateSignUp(),
+		authHandler.SignUp,
+	)
 
 	//Public routes
 	app.Post("/api/users", userHandler.CreateUser)

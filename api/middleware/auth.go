@@ -104,13 +104,13 @@ func AdminOnly() fiber.Handler {
 		user, ok := c.Locals("user").(*models.User)
 		if !ok || user == nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": models.ErrUnaithenticated.Error(),
+				"error": models.ErrUnauthenticated.Error,
 			})
 		}
 
 		if !user.IsAdmin {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": models.ErrNotAdmin.Error(),
+				"error": models.ErrNotAdmin.Error,
 			})
 		}
 		return c.Next()
