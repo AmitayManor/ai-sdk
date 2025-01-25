@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"github.com/joho/godotenv"
+	"github.com/supabase-community/postgrest-go"
 	"github.com/supabase-community/supabase-go"
 	"os"
 	"strings"
@@ -41,4 +42,33 @@ func InitSupabase() error {
 }
 func GetSupabaseClient() *supabase.Client {
 	return SupabaseClient
+}
+
+var dbClient *postgrest.Client
+
+func InitPostgres() error {
+	supabaseUrl := os.Getenv("SUPABASE_URL")
+	supabaseKey := os.Getenv("SUPABASE_ANON_KEY")
+
+	headers := map[string]string{
+		"apikey":        supabaseKey,
+		"Authorization": fmt.Sprintf("Bearer %s", supabaseKey),
+		"Content-Type":  "application/json",
+		"Prefer":        "return=minimal",
+	}
+
+	client := postgrest.NewClient(fmt.Sprintf("%s/rest/v1", supabaseUrl), "public", headers)
+
+	fmt.Printf("DB Client created with URL: %s\n", supabaseUrl)
+
+	if client.ClientError != nil {
+		return fmt.Errorf("failed to create Postgres client: %w", client.ClientError)
+	}
+
+	dbClient = client
+	return nil
+}
+
+func GetDBClient() *postgrest.Client {
+	return dbClient
 }
