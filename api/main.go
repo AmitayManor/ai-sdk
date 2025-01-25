@@ -54,6 +54,7 @@ func main() {
 
 	userHandler := handlers.NewUserHandler(config.GetSupabaseClient())
 	authHandler := handlers.NewAuthHandler(config.GetSupabaseClient())
+	apiKeyHandler := handlers.NewAPIKeyHandler()
 
 	//SignUp route
 	app.Post("api/auth/signup",
@@ -84,6 +85,17 @@ func main() {
 		middleware.RateLimiter(50, time.Minute),
 	)
 	admin.Put("/users/:id", userHandler.AdminUpdateUser)
+
+	keys := api.Group("/keys")
+	keys.Post("/", apiKeyHandler.CreateKey)
+	keys.Get("/", apiKeyHandler.ListKeys)
+	keys.Delete("/:id", apiKeyHandler.DeactivateKey)
+	keys.Put("/:id", apiKeyHandler.UpdateKey)
+
+	keyProtected := app.Group("/api/v1", middleware.ValidateAPIKey())
+	keyProtected.Get("/status", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"status": "ok"})
+	})
 
 	port := os.Getenv("PORT")
 	if port == "" {
