@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"api/config"
 	"api/models"
 	"encoding/json"
 	"github.com/gofiber/fiber/v2"
@@ -29,7 +30,8 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 	}
 
 	// Check there is no users as the new one
-	_, count, err := h.supabaseClient.From("users").
+	dbClient := config.GetDBClient()
+	_, count, err := dbClient.From("users").
 		Select("id, email", "exact", false).
 		Eq("email", user.Email).
 		Execute()
@@ -41,7 +43,7 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 	}
 
 	// Create the new user
-	_, _, err = h.supabaseClient.From("users").
+	_, _, err = dbClient.From("users").
 		Insert(user, false, "", "representation", "exact").
 		Execute()
 
@@ -67,8 +69,8 @@ func (h *UserHandler) GetUser(c *fiber.Ctx) error {
 			"error": models.ErrUserNotFound.Error,
 		})
 	}
-
-	result, count, err := h.supabaseClient.From("users").
+	dbClient := config.GetDBClient()
+	result, count, err := dbClient.From("users").
 		Select("*", "exact", false).
 		Eq("id", id.String()).
 		Execute()
@@ -100,7 +102,8 @@ func (h *UserHandler) ListUsers(c *fiber.Ctx) error {
 	limit := c.QueryInt("limit", 10)
 	offset := (page - 1) * limit
 
-	res, count, err := h.supabaseClient.From("users").
+	dbClient := config.GetDBClient()
+	res, count, err := dbClient.From("users").
 		Select("*", "exact", false).
 		Range(offset, offset+limit-1, "").
 		Execute()
@@ -152,7 +155,8 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 		})
 	}
 
-	_, count, err := h.supabaseClient.From("users").
+	dbClient := config.GetDBClient()
+	_, count, err := dbClient.From("users").
 		Select("*", "exact", false).
 		Eq("id", id.String()).
 		Execute()
@@ -163,7 +167,7 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 		})
 	}
 
-	_, _, err = h.supabaseClient.From("users").
+	_, _, err = dbClient.From("users").
 		Update(updateData, "representation", "exact").
 		Eq("id", id.String()).
 		Execute()
@@ -187,8 +191,9 @@ func (h *UserHandler) DeleteUser(c *fiber.Ctx) error {
 	}
 
 	// using Soft delete by turning Is_Active to False instead of Hard deleting
+	dbClient := config.GetDBClient()
 	updateData := map[string]interface{}{"is_active": false}
-	_, _, err = h.supabaseClient.From("users").
+	_, _, err = dbClient.From("users").
 		Update(updateData, "representation", "exact").
 		Eq("id", id.String()).
 		Execute()
@@ -211,7 +216,8 @@ func (h *UserHandler) UpdateLoginAttempts(c *fiber.Ctx) error {
 		})
 	}
 
-	res, count, err := h.supabaseClient.From("users").
+	dbClient := config.GetDBClient()
+	res, count, err := dbClient.From("users").
 		Select("failed_login_attempts", "exact", false).
 		Eq("id", id.String()).
 		Execute()
@@ -234,7 +240,7 @@ func (h *UserHandler) UpdateLoginAttempts(c *fiber.Ctx) error {
 		"is_active":             user.FailedLoginAttempts < 4,
 	}
 
-	_, _, err = h.supabaseClient.From("users").
+	_, _, err = dbClient.From("users").
 		Update(updateData, "representation", "exact").
 		Eq("id", id.String()).
 		Execute()
@@ -262,7 +268,8 @@ func (h *UserHandler) ResetLoginAttempts(c *fiber.Ctx) error {
 		"last_login":            "NOW()",
 	}
 
-	_, _, err = h.supabaseClient.From("users").
+	dbClient := config.GetDBClient()
+	_, _, err = dbClient.From("users").
 		Update(updateDate, "representation", "exact").
 		Eq("id", id.String()).
 		Execute()

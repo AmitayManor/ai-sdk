@@ -29,6 +29,11 @@ func main() {
 	}
 	defer conn.Close(context.Background())
 
+	//init postgres client
+	if err := config.InitPostgres(); err != nil {
+		log.Fatal("Failed to initialized Postgres Client: %v", err)
+	}
+
 	// init server engine
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
