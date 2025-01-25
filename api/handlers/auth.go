@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"api/config"
 	"api/models"
+	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/supabase-community/gotrue-go/types"
@@ -18,10 +20,6 @@ func NewAuthHandler(supabaseClient *supabase.Client) *AuthHandler {
 	}
 }
 func (h *AuthHandler) SignUp(c *fiber.Ctx) error {
-	//var input struct {
-	//	Email    string `json:"email"`
-	//	Password string `json:"password"`
-	//}
 
 	var input types.SignupRequest
 
@@ -44,9 +42,12 @@ func (h *AuthHandler) SignUp(c *fiber.Ctx) error {
 		IsActive: true,
 	}
 
-	_, _, err = h.supabaseClient.From("users").
+	dbClient := config.GetDBClient()
+	_, _, err = dbClient.From("users").
 		Insert(user, false, "", "representation", "exact").
 		Execute()
+
+	fmt.Printf("Insert attempt result: %v\n", err)
 
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
