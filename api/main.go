@@ -18,7 +18,7 @@ func main() {
 
 	// init supabase client
 	if err := config.InitSupabase(); err != nil {
-		log.Fatal("Failed to initialized Supabase: %v", err)
+		log.Fatalf("Failed to initialized Supabase: %v", err)
 
 	}
 
@@ -31,7 +31,7 @@ func main() {
 
 	//init postgres client
 	if err := config.InitPostgres(); err != nil {
-		log.Fatal("Failed to initialized Postgres Client: %v", err)
+		log.Fatalf("Failed to initialized Postgres Client: %v", err)
 	}
 
 	// init server engine
@@ -54,6 +54,9 @@ func main() {
 
 	userHandler := handlers.NewUserHandler(config.GetSupabaseClient())
 	authHandler := handlers.NewAuthHandler(config.GetSupabaseClient())
+	apiKeyHandler := handlers.NewAPIKeyHandler()
+	modelHandler := handlers.NewModelHandler()
+	requestHandler := handlers.NewRequestHandler()
 
 	//SignUp route
 	app.Post("api/auth/signup",
@@ -71,19 +74,37 @@ func main() {
 	api := app.Group("/api", middleware.Protected(),
 		middleware.RateLimiter(100, time.Minute),
 	)
-
 	api.Get("/users", userHandler.ListUsers)
 	api.Get("/users/:id", userHandler.GetUser)
 	api.Put("/users/:id", userHandler.UpdateUser)
 	api.Delete("/users/:id", userHandler.DeleteUser)
 	api.Put("/users/:id/login-attempts", userHandler.UpdateLoginAttempts)
 	api.Put("/users/:id/reset-attempts", userHandler.ResetLoginAttempts)
+	api.Post("/requests", middleware.RateLimiter(50, time.Minute), requestHandler.CreateRequest)
+	api.Get("/requests", middleware.RateLimiter(100, time.Minute), requestHandler.ListRequests)
+	api.Get("/requests/:id", middleware.RateLimiter(100, time.Minute), requestHandler.GetRequest)
 
 	//Admin routes
 	admin := api.Group("/admin", middleware.AdminOnly(),
 		middleware.RateLimiter(50, time.Minute),
 	)
 	admin.Put("/users/:id", userHandler.AdminUpdateUser)
+	admin.Post("/models", middleware.RateLimiter(20, time.Minute), modelHandler.CreateModel)
+	admin.Get("/models", middleware.RateLimiter(100, time.Minute), modelHandler.ListModels)
+	admin.Get("/models/:id", middleware.RateLimiter(100, time.Minute), modelHandler.GetModel)
+	admin.Put("/models/:id", middleware.RateLimiter(20, time.Minute), modelHandler.UpdateModel)
+	admin.Delete("/models/:id", middleware.RateLimiter(20, time.Minute), modelHandler.DeleteModel)
+
+	keys := api.Group("/keys")
+	keys.Post("/", apiKeyHandler.CreateKey)
+	keys.Get("/", apiKeyHandler.ListKeys)
+	keys.Delete("/:id", apiKeyHandler.DeactivateKey)
+	keys.Put("/:id", apiKeyHandler.UpdateKey)
+
+	keyProtected := app.Group("/api/v1", middleware.ValidateAPIKey())
+	keyProtected.Get("/status", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"status": "ok"})
+	})
 
 	port := os.Getenv("PORT")
 	if port == "" {

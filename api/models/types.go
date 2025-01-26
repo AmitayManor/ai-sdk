@@ -39,6 +39,7 @@ type AIModel struct {
 	ModelType     string    `json:"model_type"`
 	Version       string    `json:"version"`
 	HuggingfaceID string    `json:"huggingface_id"`
+	FunctionURL   string    `json:"function_url"`
 	IsActive      bool      `json:"is_active"`
 	CreatedAt     time.Time `json:"created_at"`
 }
