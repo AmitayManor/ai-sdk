@@ -45,15 +45,17 @@ type AIModel struct {
 }
 
 type ModelRequest struct {
-	ID          uuid.UUID              `json:"id"`
-	UserID      uuid.UUID              `json:"user_id"`
-	ModelID     uuid.UUID              `json:"model_id"`
-	APIKeyID    uuid.UUID              `json:"api_key_id"`
-	CreatedAt   time.Time              `json:"created_at"`
-	CompletedAt *time.Time             `json:"completed_at"`
-	Status      string                 `json:"status"`
-	InputData   map[string]interface{} `json:"input_data"`
-	OutputData  map[string]interface{} `json:"output_data"`
-	ErrorMsg    string                 `json:"error_msg"`
-	TokenUsed   int                    `json:"token_used"`
+	ID             uuid.UUID              `json:"id"`
+	UserID         uuid.UUID              `json:"user_id"`
+	ModelID        uuid.UUID              `json:"model_id"`
+	APIKeyID       uuid.UUID              `json:"api_key_id"`
+	CreatedAt      time.Time              `json:"created_at"`
+	CompletedAt    *time.Time             `json:"completed_at"`
+	Status         string                 `json:"status"`
+	InputData      map[string]interface{} `json:"input_data"`
+	OutputData     map[string]interface{} `json:"output_data"`
+	ErrorMsg       string                 `json:"error_msg"`
+	TokenUsed      int                    `json:"token_used"`
+	TokenCount     int                    `json:"token_count"`
+	ProcessingTime int                    `json:"processing_time"`
 }
