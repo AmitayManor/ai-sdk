@@ -48,7 +48,7 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.HuggingFaceClient = void 0;
-var huggingface_1 = require("huggingface"); // i need to npm install the package - and to check latest version
+var huggingface_1 = require("./huggingface"); // i need to npm install the package - and to check latest version
 var errors_ts_1 = require("./errors.ts");
 var HuggingFaceClient = /** @class */ (function () {
     function HuggingFaceClient(env) {

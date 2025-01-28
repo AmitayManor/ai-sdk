@@ -4,9 +4,9 @@
 
 import { serve } from "https://deno.land/std@0.214.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1"
-import { HuggingFaceClient } from './../../shared/huggingface.ts'
-import { handleError } from './../../shared/errors.ts'
-import { EdgeEnv, ModelRequest, ModelResponse } from './../../shared/types.ts'
+import { HuggingFaceClient } from './shared/huggingface.ts'
+import { handleError } from './shared/errors.ts'
+import { EdgeEnv, ModelRequest, ModelResponse } from './shared/types.ts'
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 
 // Get environment variables
