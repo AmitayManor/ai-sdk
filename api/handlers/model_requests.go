@@ -38,7 +38,7 @@ func (h *RequestHandler) CreateModelRequest(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(string)
 	requestID := uuid.New()
 
-	request := models.ModelRequest{
+	request := models.AiModelsRequest{
 		ID:        requestID,
 		UserID:    uuid.MustParse(userID),
 		Status:    "pending",
@@ -100,7 +100,7 @@ func (h *RequestHandler) CreateModelRequest(c *fiber.Ctx) error {
 		})
 	}
 
-	var updatedRequest models.ModelRequest
+	var updatedRequest models.AiModelsRequest
 
 	_, _, err = h.dbClient.From("model_requests").
 		Select("*", "exact", false).
@@ -119,7 +119,7 @@ func (h *RequestHandler) CreateModelRequest(c *fiber.Ctx) error {
 func (h *RequestHandler) ListRequests(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(string)
 
-	var requests []models.ModelRequest
+	var requests []models.AiModelsRequest
 	_, _, err := h.dbClient.From("model_requests").
 		Select("*", "exact", false).
 		Eq("user_id", userID).
