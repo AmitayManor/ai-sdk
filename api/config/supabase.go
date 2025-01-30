@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/joho/godotenv"
 	"github.com/supabase-community/postgrest-go"
+	storage_go "github.com/supabase-community/storage-go"
 	"github.com/supabase-community/supabase-go"
 	"os"
 	"strings"
@@ -71,4 +72,31 @@ func InitPostgres() error {
 
 func GetDBClient() *postgrest.Client {
 	return dbClient
+}
+
+var storageClient *storage_go.Client
+
+func InitStorage() error {
+	fmt.Printf("Initializing Storage client...\n")
+
+	storageUrl := os.Getenv("STORAGE_URL")
+	supabaseKey := os.Getenv("SUPABASE_ANON_KEY")
+
+	headers := map[string]string{
+		"apikey": supabaseKey,
+	}
+
+	// Initialize storage client
+	client := storage_go.NewClient(storageUrl, supabaseKey, headers)
+	if client == nil {
+		return fmt.Errorf("failed to create Storage client is empty")
+	}
+
+	storageClient = client
+	fmt.Printf("Storage client initialized successfully\n")
+	return nil
+}
+
+func GetStorageClient() *storage_go.Client {
+	return storageClient
 }

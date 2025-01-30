@@ -3,11 +3,13 @@ package handlers
 import (
 	"api/config"
 	"api/models"
-	"api/utils"
+	"bytes"
 	"encoding/json"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/supabase-community/postgrest-go"
+	"net/http"
+	"os"
 	"time"
 )
 
@@ -21,120 +23,107 @@ func NewRequestHandler() *RequestHandler {
 	}
 }
 
-func (h *RequestHandler) CreateRequest(c *fiber.Ctx) error {
-	var request models.ModelRequest
-	if err := c.BodyParser(&request); err != nil {
+func (h *RequestHandler) CreateModelRequest(c *fiber.Ctx) error {
+	var input struct {
+		ModelType string                 `json:"model_type"`
+		InputData map[string]interface{} `json:"input_data"`
+	}
+
+	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
 		})
 	}
 
-	user := c.Locals("user").(*models.User)
-	request.UserID = user.ID
+	userID := c.Locals("user_id").(string)
+	requestID := uuid.New()
 
-	result, count, err := h.dbClient.From("ai_models").
-		Select("*", "exact", false).
-		Eq("id", request.ModelID.String()).
-		Eq("is_active", "true").
+	request := models.ModelRequest{
+		ID:        requestID,
+		UserID:    uuid.MustParse(userID),
+		Status:    "pending",
+		InputData: input.InputData,
+		ModelType: input.ModelType,
+		CreatedAt: time.Now(),
+	}
+
+	_, _, err := h.dbClient.From("model_requests").
+		Insert(request, false, "", "representation", "exact").
 		Execute()
 
-	if err != nil || count == 0 {
+	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": models.ErrModelNotFound.Error,
 		})
 	}
 
-	var model models.AIModel
-	if err := json.Unmarshal(result, &model); err != nil {
+	edgeFunctionPayload := map[string]interface{}{
+		"id":      requestID.String(),
+		"input":   input.InputData,
+		"modelId": input.ModelType, // The Edge Function expects modelId
+	}
+
+	httpClient := &http.Client{
+		Timeout: time.Second * 30, // Adjust timeout as needed
+	}
+
+	payloadBytes, err := json.Marshal(edgeFunctionPayload)
+	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to parse model data",
+			"error": "Failed to prepare edge function request",
 		})
 	}
 
-	request.ID = uuid.New()
-	request.CreatedAt = time.Now()
-	request.Status = "PENDING"
+	edgeFunctionURL := "https://tpuhjnicfmhvgoufjvvn.supabase.co/functions/v1/huggingface-models"
+	req, err := http.NewRequest("POST", edgeFunctionURL, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to create edge function request",
+		})
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("SUPABASE_ANON_KEY"))
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Edge function request failed",
+		})
+	}
+	defer resp.Body.Close()
+
+	var edgeFunctionResponse map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&edgeFunctionResponse); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to parse edge function response",
+		})
+	}
+
+	var updatedRequest models.ModelRequest
 
 	_, _, err = h.dbClient.From("model_requests").
-		Insert(request, false, "", "representation", "exact").
-		Execute()
-
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to create request",
-		})
-	}
-
-	go utils.ProcessModelRequest(request, model)
-
-	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
-		"request_id": request.ID,
-		"status":     "PENDING",
-	})
-}
-
-func (h *RequestHandler) GetRequest(c *fiber.Ctx) error {
-	requestID := c.Params("id")
-	id, err := uuid.Parse(requestID)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request ID",
-		})
-	}
-
-	user := c.Locals("user").(*models.User)
-
-	result, count, err := h.dbClient.From("model_requests").
 		Select("*", "exact", false).
-		Eq("id", id.String()).
+		Eq("id", requestID.String()).
 		Execute()
 
-	if err != nil || count == 0 {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Request not found",
-		})
-	}
-
-	var request models.ModelRequest
-	if err := json.Unmarshal(result, &request); err != nil {
+	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to parse response",
+			"error": "Failed to fetch updated request",
 		})
 	}
 
-	if !user.IsAdmin && request.UserID != user.ID {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Not authorized to access this request",
-		})
-	}
-
-	return c.JSON(request)
+	return c.Status(fiber.StatusOK).JSON(updatedRequest)
 }
 
 func (h *RequestHandler) ListRequests(c *fiber.Ctx) error {
-	page := c.QueryInt("page", 1)
-	limit := c.QueryInt("limit", 10)
-	offset := (page - 1) * limit
+	userID := c.Locals("user_id").(string)
 
-	user := c.Locals("user").(*models.User)
-
-	var result []byte
-	var count int64
-	var err error
-
-	// Admins can see all requests, users only see their own
-	if user.IsAdmin {
-		result, count, err = h.dbClient.From("model_requests").
-			Select("*", "exact", false).
-			Range(offset, offset+limit-1, "").
-			Execute()
-	} else {
-		result, count, err = h.dbClient.From("model_requests").
-			Select("*", "exact", false).
-			Eq("user_id", user.ID.String()).
-			Range(offset, offset+limit-1, "").
-			Execute()
-	}
+	var requests []models.ModelRequest
+	_, _, err := h.dbClient.From("model_requests").
+		Select("*", "exact", false).
+		Eq("user_id", userID).
+		Execute()
 
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -142,17 +131,5 @@ func (h *RequestHandler) ListRequests(c *fiber.Ctx) error {
 		})
 	}
 
-	var requests []models.ModelRequest
-	if err := json.Unmarshal(result, &requests); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to parse response",
-		})
-	}
-
-	return c.JSON(fiber.Map{
-		"requests": requests,
-		"total":    count,
-		"page":     page,
-		"limit":    limit,
-	})
+	return c.JSON(requests)
 }
