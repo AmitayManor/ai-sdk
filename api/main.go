@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"log"
 	"os"
-	"time"
 )
 
 func main() {
@@ -43,8 +42,6 @@ func main() {
 		},
 	})
 
-	middleware.InitBlacklist()
-
 	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: os.Getenv("ALLOWED_ORIGINS"),
@@ -52,10 +49,8 @@ func main() {
 		AllowMethods: "GET, POST, PUT, DELETE, OPTIONS",
 	}))
 
-	userHandler := handlers.NewUserHandler(config.GetSupabaseClient())
 	authHandler := handlers.NewAuthHandler(config.GetSupabaseClient())
-	apiKeyHandler := handlers.NewAPIKeyHandler()
-	modelHandler := handlers.NewModelHandler()
+	storageHandler := handlers.NewStorageHandler(config.GetStorageClient())
 	requestHandler := handlers.NewRequestHandler()
 
 	//SignUp route
@@ -64,47 +59,17 @@ func main() {
 		authHandler.SignUp,
 	)
 
-	//Public routes
-	app.Post("/api/users", userHandler.CreateUser)
-	app.Post("/api/auth/signin", middleware.RateLimiter(5, time.Minute),
-		userHandler.SignIn,
-	)
+	app.Post("/auth/signin", authHandler.SignIn)
 
-	//Protected routes
-	api := app.Group("/api", middleware.Protected(),
-		middleware.RateLimiter(100, time.Minute),
-	)
-	api.Get("/users", userHandler.ListUsers)
-	api.Get("/users/:id", userHandler.GetUser)
-	api.Put("/users/:id", userHandler.UpdateUser)
-	api.Delete("/users/:id", userHandler.DeleteUser)
-	api.Put("/users/:id/login-attempts", userHandler.UpdateLoginAttempts)
-	api.Put("/users/:id/reset-attempts", userHandler.ResetLoginAttempts)
-	api.Post("/requests", middleware.RateLimiter(50, time.Minute), requestHandler.CreateRequest)
-	api.Get("/requests", middleware.RateLimiter(100, time.Minute), requestHandler.ListRequests)
-	api.Get("/requests/:id", middleware.RateLimiter(100, time.Minute), requestHandler.GetRequest)
+	// Protected routes
+	api := app.Group("/api", middleware.AuthRequired())
 
-	//Admin routes
-	admin := api.Group("/admin", middleware.AdminOnly(),
-		middleware.RateLimiter(50, time.Minute),
-	)
-	admin.Put("/users/:id", userHandler.AdminUpdateUser)
-	admin.Post("/models", middleware.RateLimiter(20, time.Minute), modelHandler.CreateModel)
-	admin.Get("/models", middleware.RateLimiter(100, time.Minute), modelHandler.ListModels)
-	admin.Get("/models/:id", middleware.RateLimiter(100, time.Minute), modelHandler.GetModel)
-	admin.Put("/models/:id", middleware.RateLimiter(20, time.Minute), modelHandler.UpdateModel)
-	admin.Delete("/models/:id", middleware.RateLimiter(20, time.Minute), modelHandler.DeleteModel)
+	// Model requests endpoints
+	api.Post("/requests", requestHandler.CreateModelRequest)
+	api.Get("/requests", requestHandler.ListRequests)
 
-	keys := api.Group("/keys")
-	keys.Post("/", apiKeyHandler.CreateKey)
-	keys.Get("/", apiKeyHandler.ListKeys)
-	keys.Delete("/:id", apiKeyHandler.DeactivateKey)
-	keys.Put("/:id", apiKeyHandler.UpdateKey)
-
-	keyProtected := app.Group("/api/v1", middleware.ValidateAPIKey())
-	keyProtected.Get("/status", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"status": "ok"})
-	})
+	// Storage endpoints
+	api.Get("/images/:id", storageHandler.GetGeneratedImage)
 
 	port := os.Getenv("PORT")
 	if port == "" {

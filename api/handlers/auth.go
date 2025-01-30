@@ -1,12 +1,8 @@
 package handlers
 
 import (
-	"api/config"
 	"api/models"
-	"fmt"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/supabase-community/gotrue-go/types"
 	"github.com/supabase-community/supabase-go"
 )
 
@@ -21,7 +17,10 @@ func NewAuthHandler(supabaseClient *supabase.Client) *AuthHandler {
 }
 func (h *AuthHandler) SignUp(c *fiber.Ctx) error {
 
-	var input types.SignupRequest
+	var input struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
 
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -29,38 +28,39 @@ func (h *AuthHandler) SignUp(c *fiber.Ctx) error {
 		})
 	}
 
-	authResp, err := h.supabaseClient.Auth.Signup(input)
+	_, err := h.supabaseClient.Auth.SignInWithEmailPassword(input.Email, input.Password)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "signup failed",
 		})
 	}
 
-	user := models.User{
-		ID:       uuid.MustParse(authResp.User.ID.String()),
-		Email:    authResp.User.Email,
-		IsActive: true,
-	}
-
-	dbClient := config.GetDBClient()
-	_, _, err = dbClient.From("users").
-		Insert(user, false, "", "representation", "exact").
-		Execute()
-
-	fmt.Printf("Insert attempt result: %v\n", err)
-
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "registration failed",
-		})
-	}
 	return c.JSON(fiber.Map{
 		"message": "Signup successful. Please check your email for verification.",
-		"user": models.UserResponse{
-			ID:       user.ID,
-			Email:    user.Email,
-			IsActive: user.IsActive,
-			IsAdmin:  user.IsAdmin,
-		},
+	})
+}
+
+func (h *AuthHandler) SignIn(c *fiber.Ctx) error {
+	var input struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	authResponse, err := h.supabaseClient.Auth.SignInWithEmailPassword(input.Email, input.Password)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid credentials",
+		})
+	}
+
+	// Return the access token
+	return c.JSON(fiber.Map{
+		"token": authResponse.AccessToken,
 	})
 }
