@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type AiModelsRequest struct {
+type ModelRequest struct {
 	ID             uuid.UUID              `json:"id"`
 	CreatedAt      time.Time              `json:"created_at"`
 	UserID         uuid.UUID              `json:"user_id"`
